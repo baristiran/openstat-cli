@@ -1,0 +1,109 @@
+# OpenStat Demo Script
+# Demonstrates all features of OpenStat
+
+# Load dataset
+load examples/data.csv
+
+# Explore the data
+describe
+head 5
+tail 3
+count
+
+# Check for duplicates
+duplicates
+
+# Unique values
+unique region
+unique education
+
+# Summary statistics
+summarize age income score
+
+# Frequency table
+tabulate education
+tabulate region
+
+# Cross-tabulation
+crosstab region employed
+
+# Correlation matrix
+corr age income score
+
+# Hypothesis tests
+ttest score mu=7
+ttest income by employed
+anova score by region
+chi2 region employed
+
+# Encode categorical variables
+encode region as region_code
+
+# Create derived variable: income in thousands
+derive income_k = income / 1000
+
+# Sort by age descending
+sort age --desc
+
+# Filter to employed people
+filter employed == 1
+
+# Rename a column
+rename income_k income_thousands
+
+# Group summary
+groupby region summarize mean(income) mean(score) count()
+
+# Fill missing values (if any)
+# fillna age mean
+# fillna income median
+
+# Cast column type
+# cast age float
+
+# Create lag/lead variables
+lag income
+lead income
+
+# OLS regression: score predicted by age and income
+ols score ~ age + income
+
+# Post-estimation: predictions, residuals, VIF
+predict yhat
+residuals resid
+vif
+
+# Stepwise variable selection
+stepwise score ~ age + income + income_lag1 + income_lead1
+
+# OLS with robust standard errors
+ols score ~ age + income --robust
+
+# Export last model as LaTeX
+latex outputs/model_table.tex
+
+# Probit regression (binary outcome)
+probit employed ~ age + income
+
+# Diagnostic plots after model
+plot diagnostics
+
+# Plots
+plot hist age
+plot scatter score income
+plot line score age
+plot box income by region
+plot bar score by region
+plot heatmap age income score
+
+# Undo last data change
+undo
+
+# Take a 50% sample
+sample 50%
+
+# Save filtered data
+save outputs/filtered_data.csv
+
+# Generate report
+report outputs/report.md
