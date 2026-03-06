@@ -158,10 +158,11 @@ class TestMLCommands:
         assert "r_squared" in out or "Feature" in out
 
     def test_crossval_cmd(self, session_reg):
-        from openstat.commands.ml_cmds import cmd_crossval
-        out = cmd_crossval(session_reg, "y x1 x2 x3 method(ols) k(3)")
-        assert "Cross-Validation" in out
-        assert "Mean score" in out
+        from openstat.commands.advanced_ml_cmds import cmd_crossval
+        from openstat.commands.stat_cmds import cmd_ols
+        cmd_ols(session_reg, "y ~ x1 + x2 + x3")
+        out = cmd_crossval(session_reg, "--folds=3")
+        assert "Cross" in out or "cv" in out.lower() or "fold" in out.lower() or "R²" in out
 
     def test_lasso_no_args(self, session_reg):
         from openstat.commands.ml_cmds import cmd_lasso

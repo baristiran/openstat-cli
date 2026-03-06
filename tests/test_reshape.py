@@ -137,13 +137,13 @@ class TestEncode:
         s.df = str_df
         out = cmd_encode(s, "name")
         assert "Encoded" in out or "categories" in out
-        assert "name_encoded" in s.df.columns
+        assert "name_code" in s.df.columns
 
     def test_gen_option(self, str_df):
         from openstat.commands.reshape_cmds import cmd_encode
         s = Session()
         s.df = str_df
-        cmd_encode(s, "name gen(name_id)")
+        cmd_encode(s, "name as name_id")
         assert "name_id" in s.df.columns
 
     def test_integer_output(self, str_df):
@@ -151,7 +151,7 @@ class TestEncode:
         s = Session()
         s.df = str_df
         cmd_encode(s, "name")
-        assert s.df["name_encoded"].dtype in (pl.Int64, pl.Int32)
+        assert s.df["name_code"].dtype in (pl.Int64, pl.Int32, pl.UInt32)
 
     def test_missing_col(self, str_df):
         from openstat.commands.reshape_cmds import cmd_encode

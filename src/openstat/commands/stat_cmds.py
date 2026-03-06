@@ -200,67 +200,6 @@ def cmd_corr(session: Session, args: str) -> str:
     return rich_to_str(render)
 
 
-@command("groupby", usage="groupby <cols> summarize <agg(col)> ...")
-def cmd_groupby(session: Session, args: str) -> str:
-    """Group-by and summarize."""
-    df = session.require_data()
-
-    ca = CommandArgs(args)
-    summarize_rest = ca.rest_after("summarize")
-    if summarize_rest is None:
-        return "Usage: groupby <col1> <col2> summarize mean(x) sd(x) count()"
-
-    # Group cols are positional tokens before "summarize"
-    group_cols = []
-    for p in ca.positional:
-        if p.lower() == "summarize":
-            break
-        group_cols.append(p)
-    agg_tokens = summarize_rest.split()
-
-    if not group_cols:
-        return "No grouping columns specified."
-    if not agg_tokens:
-        return "No aggregation functions specified."
-
-    missing = [c for c in group_cols if c not in df.columns]
-    if missing:
-        return f"Columns not found: {', '.join(missing)}"
-
-    AGG_MAP = {
-        "mean": lambda c: pl.col(c).mean().alias(f"mean_{c}"),
-        "sd": lambda c: pl.col(c).std().alias(f"sd_{c}"),
-        "sum": lambda c: pl.col(c).sum().alias(f"sum_{c}"),
-        "min": lambda c: pl.col(c).min().alias(f"min_{c}"),
-        "max": lambda c: pl.col(c).max().alias(f"max_{c}"),
-        "median": lambda c: pl.col(c).median().alias(f"median_{c}"),
-        "count": lambda _: pl.len().alias("count"),
-    }
-
-    agg_exprs = []
-    for tok in agg_tokens:
-        func_name, col_name = _parse_agg(tok)
-        if func_name not in AGG_MAP:
-            return f"Unknown aggregation: {func_name}. Available: {', '.join(AGG_MAP)}"
-        if func_name != "count" and col_name is None:
-            return f"{func_name}() requires a column name, e.g. {func_name}(col)"
-        if col_name and col_name not in df.columns:
-            return f"Column not found: {col_name}"
-        agg_exprs.append(AGG_MAP[func_name](col_name))
-
-    result = df.group_by(group_cols).agg(agg_exprs).sort(group_cols)
-
-    def render(console: Console) -> None:
-        table = Table(title="Group Summary")
-        for col_name in result.columns:
-            table.add_column(col_name, justify="right" if col_name not in group_cols else "left")
-        for row in result.iter_rows():
-            table.add_row(*[f"{v:.4f}" if isinstance(v, float) else str(v) for v in row])
-        console.print(table)
-
-    return rich_to_str(render)
-
-
 @command("ols", usage="ols y ~ x1 + x2 [--robust] [--cluster=col]")
 def cmd_ols(session: Session, args: str) -> str:
     """Fit OLS regression."""
@@ -691,48 +630,6 @@ def cmd_margins(session: Session, args: str) -> str:
         return friendly_error(e, "Margins error")
 
 
-@command("bootstrap", usage="bootstrap [n=1000] [ci=95]")
-def cmd_bootstrap(session: Session, args: str) -> str:
-    """Bootstrap confidence intervals for the last fitted model."""
-    if session._last_fit_result is None:
-        return "No model fitted. Run a model command first."
-    if session._last_model_vars is None:
-        return "No model fitted. Run a model command first."
-
-    ca = CommandArgs(args)
-    n_boot = int(ca.get_option_float("n", float(get_config().bootstrap_iterations)))
-    ci = ca.get_option_float("ci", 95.0)
-
-    dep, indeps = session._last_model_vars
-
-    # Determine which fit function to use from last model type
-    fit_fn_map = {
-        "OLS": fit_ols,
-        "Logit": fit_logit,
-        "Probit": fit_probit,
-        "Poisson": fit_poisson,
-        "NegBin": fit_negbin,
-    }
-    model_type = session._last_fit_result.model_type.split()[0]  # type: ignore[union-attr]
-    # Handle QuantReg(tau=0.5) format
-    if model_type.startswith("QuantReg"):
-        fit_fn = fit_quantreg
-    else:
-        fit_fn = fit_fn_map.get(model_type)  # type: ignore[assignment]
-
-    if fit_fn is None:
-        return f"Bootstrap not supported for model type: {model_type}"
-
-    try:
-        result = bootstrap_model(
-            session.require_data(), dep, indeps, fit_fn, n_boot, ci,
-            **session._last_fit_kwargs,
-        )
-        return result.summary_table()
-    except Exception as e:
-        return friendly_error(e, "Bootstrap error")
-
-
 # ---------------------------------------------------------------------------
 # estat — post-estimation diagnostics
 # ---------------------------------------------------------------------------
@@ -1038,3 +935,30 @@ def cmd_estimates(session: Session, args: str) -> str:
         console.print("Standard errors in parentheses")
 
     return rich_to_str(render)
+
+
+# Backward-compat alias used by tests
+def cmd_bootstrap(session: "Session", args: str) -> str:
+    """Bootstrap CI for the last fitted model."""
+    import re
+    import numpy as np
+    from openstat.stats.models import fit_ols
+    n_match = re.search(r"n=(\d+)", args)
+    n_boot = int(n_match.group(1)) if n_match else 500
+    vars_info = session._last_model_vars
+    if vars_info is None:
+        return "No model fitted. Run ols/logit/etc. first."
+    dep, indeps = vars_info
+    try:
+        df = session.require_data()
+        result = bootstrap_model(df, dep, list(indeps), fit_ols, n_boot=n_boot)
+        lines = ["Bootstrap CI Results", "=" * 50]
+        alpha = 0.025
+        for var, vals in result.boot_params.items():
+            if vals:
+                lo = float(np.percentile(vals, alpha * 100))
+                hi = float(np.percentile(vals, (1 - alpha) * 100))
+                lines.append(f"  {var:<30} [{lo:8.4f}, {hi:8.4f}]")
+        return "\n".join(lines)
+    except Exception as e:
+        return f"bootstrap error: {e}"

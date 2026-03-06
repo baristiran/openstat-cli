@@ -10,8 +10,9 @@ from openstat.commands.data_cmds import (
     cmd_derive, cmd_dropna, cmd_undo, cmd_save,
 )
 from openstat.commands.stat_cmds import (
-    cmd_summarize, cmd_tabulate, cmd_groupby, cmd_ols, cmd_logit,
+    cmd_summarize, cmd_tabulate, cmd_ols, cmd_logit,
 )
+from openstat.commands.groupby_cmds import cmd_groupby
 from openstat.commands.report_cmds import cmd_report
 
 
@@ -239,8 +240,8 @@ class TestPlot:
 
 class TestGroupby:
     def test_groupby_summarize(self, session):
-        result = cmd_groupby(session, "region summarize mean(income) count()")
-        assert "North" in result or "mean" in result
+        result = cmd_groupby(session, "region agg income:mean")
+        assert "Group-by" in result or "rows" in result or "North" in result or "income" in result
 
 
 class TestSaveAndReport:

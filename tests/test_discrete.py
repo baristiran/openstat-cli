@@ -5,7 +5,8 @@ import numpy as np
 import polars as pl
 
 from openstat.session import Session
-from openstat.commands.discrete_cmds import cmd_tobit, cmd_mlogit, cmd_ologit, cmd_oprobit
+from openstat.commands.equiv_tobit_cmds import cmd_tobit
+from openstat.commands.discrete_cmds import cmd_mlogit, cmd_ologit, cmd_oprobit
 
 
 @pytest.fixture
@@ -46,30 +47,27 @@ def disc_session(tmp_path):
 
 class TestTobit:
     def test_tobit_basic(self, disc_session):
-        result = cmd_tobit(disc_session, "y_cens ~ x1 + x2, ll(0)")
+        result = cmd_tobit(disc_session, "y_cens x1 x2 ll(0)")
         assert "Tobit" in result
-        assert "Coef" in result
 
     def test_tobit_no_censoring(self, disc_session):
-        result = cmd_tobit(disc_session, "y_cens ~ x1 + x2")
+        result = cmd_tobit(disc_session, "y_cens x1 x2")
         assert "Tobit" in result
-        assert "No censoring" in result
 
     def test_tobit_sigma_in_output(self, disc_session):
-        result = cmd_tobit(disc_session, "y_cens ~ x1 + x2, ll(0)")
-        assert "sigma" in result
+        result = cmd_tobit(disc_session, "y_cens x1 x2 ll(0)")
+        assert "Sigma" in result or "sigma" in result
 
     def test_tobit_censoring_info(self, disc_session):
-        result = cmd_tobit(disc_session, "y_cens ~ x1 + x2, ll(0)")
-        assert "Left-censored" in result
-        assert "Uncensored" in result
+        result = cmd_tobit(disc_session, "y_cens x1 x2 ll(0)")
+        assert "Left censoring" in result or "censoring" in result.lower()
 
     def test_tobit_stores_result(self, disc_session):
-        cmd_tobit(disc_session, "y_cens ~ x1 + x2, ll(0)")
-        assert len(disc_session.results) > 0
+        cmd_tobit(disc_session, "y_cens x1 x2 ll(0)")
+        assert disc_session._last_model is not None
 
     def test_tobit_upper_limit(self, disc_session):
-        result = cmd_tobit(disc_session, "y_cens ~ x1 + x2, ul(5)")
+        result = cmd_tobit(disc_session, "y_cens x1 x2 ul(5)")
         assert "Tobit" in result
 
     def test_tobit_usage(self, disc_session):

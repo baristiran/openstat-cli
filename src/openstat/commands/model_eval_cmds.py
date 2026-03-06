@@ -111,32 +111,5 @@ def cmd_calibration(session: Session, args: str) -> str:
         return f"calibration error: {exc}"
 
 
-@command("shap", usage="shap dep var1 var2 ...")
-def cmd_shap(session: Session, args: str) -> str:
-    """Compute SHAP values for linear regression (exact for OLS)."""
-    from openstat.stats.model_eval import compute_shap_linear
-    df = session.require_data()
-    positional, opts = _stata_opts(args)
-    if len(positional) < 2:
-        return "Usage: shap dep var1 var2 ..."
-    dep = positional[0]
-    indeps = [c for c in positional[1:] if c in df.columns]
-    if not indeps:
-        return "No valid predictor variables found."
-    if dep not in df.columns:
-        return f"Column '{dep}' not found."
-    try:
-        r = compute_shap_linear(df, dep, indeps)
-        session._last_model = r
-        lines = ["\nSHAP Values (Linear)", "=" * 50]
-        lines.append(f"  Dep: {dep}, N: {r['n_obs']}")
-        lines.append(f"\n  {'Feature':<20} {'Mean |SHAP|':>12}  Bar")
-        lines.append("  " + "-" * 50)
-        max_shap = max(r["mean_abs_shap"].values()) if r["mean_abs_shap"] else 1
-        for feat in r["feature_ranking"]:
-            val = r["mean_abs_shap"][feat]
-            bar = "█" * int(val / max_shap * 30)
-            lines.append(f"  {feat:<20} {val:>12.4f}  {bar}")
-        return "\n".join(lines)
-    except Exception as exc:
-        return f"shap error: {exc}"
+# Backward-compat alias — cmd_shap moved to advanced_ml_cmds
+from openstat.commands.advanced_ml_cmds import cmd_shap  # noqa: F401

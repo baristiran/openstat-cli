@@ -116,32 +116,5 @@ def cmd_svm(session: Session, args: str) -> str:
         return f"svm error: {exc}"
 
 
-@command("tsne", usage="tsne var1 var2 ... [components(2) perplexity(30) gen(tsne)]")
-def cmd_tsne(session: Session, args: str) -> str:
-    """t-SNE dimensionality reduction. Adds embedding columns to data."""
-    try:
-        from sklearn.manifold import TSNE
-    except ImportError:
-        return "sklearn not installed. Run: pip install scikit-learn"
-    from openstat.stats.ml_advanced import fit_tsne
-    import polars as pl
-    df = session.require_data()
-    positional, opts = _stata_opts(args)
-    cols = [c for c in positional if c in df.columns]
-    if len(cols) < 2:
-        return "tsne requires at least 2 variables."
-    n_comp = int(opts.get("components", 2))
-    perp = float(opts.get("perplexity", 30.0))
-    prefix = opts.get("gen", "tsne")
-    session.snapshot()
-    try:
-        r = fit_tsne(df, cols, n_components=n_comp, perplexity=perp)
-        emb = r["embedding"]
-        new_df = df
-        for i in range(n_comp):
-            col_name = f"{prefix}{i+1}"
-            new_df = new_df.with_columns(pl.Series(col_name, [row[i] for row in emb]))
-        session.df = new_df
-        return f"t-SNE complete. Added columns: {[f'{prefix}{i+1}' for i in range(n_comp)]}"
-    except Exception as exc:
-        return f"tsne error: {exc}"
+# Backward-compat alias — cmd_tsne moved to dimreduce_cmds
+from openstat.commands.dimreduce_cmds import cmd_tsne  # noqa: F401

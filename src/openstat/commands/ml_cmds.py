@@ -144,35 +144,5 @@ def cmd_cart(session: Session, args: str) -> str:
         return f"cart error: {exc}"
 
 
-@command("crossval", usage="crossval depvar indepvars [, method(ols) k(5) scoring(r2)]")
-def cmd_crossval(session: Session, args: str) -> str:
-    """K-fold cross-validation for regression models."""
-    df = session.require_data()
-    dep, indeps, opts = _parse_varlist(args, df.columns)
-    if not dep or not indeps:
-        return "Usage: crossval depvar indepvar1 ... [, method(ols) k(5) scoring(r2)]"
-    method = opts.get("method", "ols")
-    k = int(opts.get("k", 5))
-    alpha = float(opts.get("alpha", 1.0))
-    scoring = opts.get("scoring", "r2")
-    try:
-        from openstat.stats.ml import cross_validate_model
-        result = cross_validate_model(df, dep, indeps, method=method, k=k,
-                                      alpha=alpha, scoring=scoring)
-        lines = [f"\nCross-Validation ({k}-fold): {method}", "=" * 55]
-        lines.append(f"  {'Dependent':<25}  {dep}")
-        lines.append(f"  {'Scoring':<25}  {scoring}")
-        lines.append(f"  {'Mean score':<25}  {result['mean_score']:>12.4f}")
-        lines.append(f"  {'Std score':<25}  {result['std_score']:>12.4f}")
-        lines.append(f"  {'Min score':<25}  {result['min_score']:>12.4f}")
-        lines.append(f"  {'Max score':<25}  {result['max_score']:>12.4f}")
-        lines.append(f"  {'N obs':<25}  {result['n_obs']:>12}")
-        lines.append("\nFold scores:")
-        for i, s in enumerate(result["scores"], 1):
-            lines.append(f"  Fold {i:<3}  {s:.4f}")
-        lines.append("=" * 55)
-        return "\n".join(lines)
-    except ImportError as e:
-        return str(e)
-    except Exception as exc:
-        return f"crossval error: {exc}"
+# Backward-compat alias — cmd_crossval moved to advanced_ml_cmds
+from openstat.commands.advanced_ml_cmds import cmd_crossval  # noqa: F401

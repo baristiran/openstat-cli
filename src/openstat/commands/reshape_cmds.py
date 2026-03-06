@@ -151,39 +151,6 @@ def cmd_collapse(session: Session, args: str) -> str:
         return f"collapse error: {exc}"
 
 
-# ── encode ─────────────────────────────────────────────────────────────────
-
-@command("encode", usage="encode varname [, gen(newvar)]")
-def cmd_encode(session: Session, args: str) -> str:
-    """Encode a string/categorical column to integer codes (0-based)."""
-    df = session.require_data()
-    positional, opts = _stata_opts(args)
-    if not positional:
-        return "Usage: encode varname [, gen(newvar)]"
-
-    var = positional[0]
-    if var not in df.columns:
-        return f"Column '{var}' not found."
-
-    new_var = opts.get("gen", var + "_encoded")
-    session.snapshot()
-
-    try:
-        # Map unique sorted values to integers
-        unique_vals = sorted(df[var].drop_nulls().unique().to_list(), key=str)
-        val_map = {v: i for i, v in enumerate(unique_vals)}
-        encoded = df[var].map_elements(
-            lambda x: val_map.get(x), return_dtype=pl.Int64
-        )
-        session.df = df.with_columns(encoded.alias(new_var))
-        mapping_str = "\n".join(f"  {i} = {v}" for i, v in enumerate(unique_vals[:20]))
-        if len(unique_vals) > 20:
-            mapping_str += f"\n  ... ({len(unique_vals)} total)"
-        return f"Encoded '{var}' → '{new_var}' ({len(unique_vals)} categories)\n{mapping_str}"
-    except Exception as exc:
-        return f"encode error: {exc}"
-
-
 # ── decode ─────────────────────────────────────────────────────────────────
 
 @command("decode", usage="decode encodedvar origvar [, gen(newvar)]")
@@ -221,3 +188,6 @@ def cmd_decode(session: Session, args: str) -> str:
         return f"Decoded '{enc_var}' → '{new_var}' ({len(code_map)} unique codes)"
     except Exception as exc:
         return f"decode error: {exc}"
+
+# Backward-compat alias — cmd_encode moved to data_cmds
+from openstat.commands.data_cmds import cmd_encode  # noqa: F401

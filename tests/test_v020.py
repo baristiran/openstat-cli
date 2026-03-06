@@ -29,8 +29,8 @@ from openstat.commands.stat_cmds import (
     cmd_negbin,
     cmd_quantreg,
     cmd_margins,
-    cmd_bootstrap,
 )
+from openstat.commands.stat_cmds import cmd_bootstrap
 
 
 @pytest.fixture(autouse=True)

@@ -125,9 +125,9 @@ def cmd_factor(session: Session, args: str) -> str:
     return "\n".join(lines)
 
 
-@command("estat", usage="estat screeplot|loadings [, blanks(0.3)]")
-def cmd_estat(session: Session, args: str) -> str:
-    """Post-estimation: screeplot or loadings table."""
+@command("screeplot", usage="screeplot [blanks(0.3)]")
+def cmd_screeplot(session: Session, args: str) -> str:
+    """Scree plot or loadings table after pca/factor."""
     positional, opts, flags = _stata_parse(args)
     sub = positional[0].lower() if positional else ""
 
@@ -178,3 +178,6 @@ def cmd_estat(session: Session, args: str) -> str:
 
     else:
         return f"Unknown estat subcommand: {sub}\nAvailable: screeplot, loadings"
+
+# Backward-compat alias — cmd_estat renamed to cmd_screeplot; stat_cmds has full cmd_estat
+from openstat.commands.stat_cmds import cmd_estat  # noqa: F401

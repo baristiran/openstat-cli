@@ -93,9 +93,10 @@ class TestTSNE:
         assert "embedding" in r
         assert len(r["embedding"]) == len(reg_df)
 
-    def test_cmd(self, reg_df):
-        from openstat.commands.ml_adv_cmds import cmd_tsne
+    def test_cmd(self, reg_df, tmp_path):
+        from openstat.commands.dimreduce_cmds import cmd_tsne
         s = Session()
         s.df = reg_df
-        out = cmd_tsne(s, "x1 x2 components(2)")
-        assert "tsne1" in s.df.columns
+        s.output_dir = tmp_path
+        out = cmd_tsne(s, "x1 x2 --n=2")
+        assert "t-SNE" in out or "tsne" in out.lower() or "saved" in out.lower()

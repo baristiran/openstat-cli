@@ -40,55 +40,6 @@ def _store_model(session, result, raw_model, dep, indeps):
     return output
 
 
-@command("tobit", usage="tobit y ~ x1 + x2 [, ll(0)] [, ul(100)] [--robust]")
-def cmd_tobit(session: Session, args: str) -> str:
-    """Fit a Tobit (censored) regression model."""
-    df = session.require_data()
-    ca = CommandArgs(args)
-    robust = ca.has_flag("--robust")
-    cluster_col = ca.get_option("cluster")
-
-    # Parse limits from args: ll(value) and ul(value)
-    lower_limit = None
-    upper_limit = None
-    ll_match = re.search(r'(?:,\s*)?ll\(([^)]+)\)', args)
-    ul_match = re.search(r'(?:,\s*)?ul\(([^)]+)\)', args)
-    if ll_match:
-        try:
-            lower_limit = float(ll_match.group(1))
-        except ValueError:
-            return f"Invalid lower limit: {ll_match.group(1)}"
-    if ul_match:
-        try:
-            upper_limit = float(ul_match.group(1))
-        except ValueError:
-            return f"Invalid upper limit: {ul_match.group(1)}"
-
-    # Strip limit specs from formula
-    formula_str = args
-    for pattern in [r',?\s*ll\([^)]+\)', r',?\s*ul\([^)]+\)']:
-        formula_str = re.sub(pattern, '', formula_str)
-    formula_str = CommandArgs(formula_str).strip_flags_and_options()
-
-    if not formula_str or "~" not in formula_str:
-        return "Usage: tobit y ~ x1 + x2 [, ll(0)] [, ul(100)] [--robust]"
-
-    try:
-        dep, indeps = parse_formula(formula_str)
-        result, raw_model = fit_tobit(
-            df, dep, indeps,
-            lower_limit=lower_limit,
-            upper_limit=upper_limit,
-            robust=robust,
-            cluster_col=cluster_col,
-        )
-        return _store_model(session, result, raw_model, dep, indeps)
-    except ParseError as e:
-        return f"Formula error: {e}"
-    except Exception as e:
-        return friendly_error(e, "Tobit error")
-
-
 @command("mlogit", usage="mlogit y ~ x1 + x2 [--robust] [--cluster=col]")
 def cmd_mlogit(session: Session, args: str) -> str:
     """Fit a Multinomial Logit model."""

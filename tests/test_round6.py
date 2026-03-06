@@ -7,7 +7,8 @@ import polars as pl
 import pytest
 
 from openstat.session import Session
-from openstat.commands.data_cmds import cmd_fillna, cmd_cast, cmd_lag, cmd_lead
+from openstat.commands.data_cmds import cmd_fillna
+from openstat.commands.datamanip_cmds import cmd_cast, cmd_lag, cmd_lead
 from openstat.commands.stat_cmds import cmd_ols, cmd_probit, cmd_predict, cmd_vif
 from openstat.stats.models import fit_probit, compute_vif
 
@@ -136,7 +137,7 @@ class TestLagLead:
     def test_lag_custom_name(self):
         s = Session()
         s.df = pl.DataFrame({"x": [1, 2, 3]})
-        cmd_lag(s, "x as prev_x")
+        cmd_lag(s, "x into(prev_x)")
         assert "prev_x" in s.df.columns
 
     def test_lag_creates_snapshot(self):

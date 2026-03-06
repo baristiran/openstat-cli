@@ -19,44 +19,6 @@ def _stata_opts(raw: str) -> tuple[list[str], dict[str, str]]:
     return positional, opts
 
 
-@command("duplicates", usage="duplicates [report|drop] [varlist]")
-def cmd_duplicates(session: Session, args: str) -> str:
-    """Report or drop duplicate observations."""
-    df = session.require_data()
-    positional, opts = _stata_opts(args)
-    action = positional[0].lower() if positional else "report"
-    subset = [c for c in positional[1:] if c in df.columns] or None
-
-    if action == "report":
-        if subset:
-            dup_mask = df.select(subset).is_duplicated()
-        else:
-            dup_mask = df.is_duplicated()
-        n_dup = int(dup_mask.sum())
-        n_unique_dup = int(df.filter(dup_mask).height) - int(df.filter(dup_mask).unique(subset=subset).height) if n_dup > 0 else 0
-        return (
-            f"Duplicates report:\n"
-            f"  Total observations:    {df.height}\n"
-            f"  Duplicate rows:        {n_dup}\n"
-            f"  Unique duplicated obs: {n_unique_dup}\n"
-            f"  Subset: {subset or 'all columns'}"
-        )
-    elif action in ("drop", "list"):
-        session.snapshot()
-        if subset:
-            clean_df = df.unique(subset=subset, keep="first")
-        else:
-            clean_df = df.unique(keep="first")
-        n_dropped = df.height - clean_df.height
-        if action == "drop":
-            session.df = clean_df
-            return f"Dropped {n_dropped} duplicate rows. {clean_df.height} rows remain."
-        else:
-            return f"Found {n_dropped} duplicate rows (use 'duplicates drop' to remove)."
-    else:
-        return "Usage: duplicates [report|drop|list] [varlist]"
-
-
 @command("winsor", usage="winsor varname [p(0.05) gen(newvar)]")
 def cmd_winsor(session: Session, args: str) -> str:
     """Winsorize a variable at specified percentile (both tails)."""
@@ -172,3 +134,6 @@ def cmd_mdpattern(session: Session, args: str) -> str:
     lines.append(f"\n  Complete rows (no missing in any selected var): {n_complete_rows} ({100*n_complete_rows/df.height:.1f}%)")
 
     return "\n".join(lines)
+
+# Backward-compat alias — cmd_duplicates moved to data_cmds
+from openstat.commands.data_cmds import cmd_duplicates  # noqa: F401

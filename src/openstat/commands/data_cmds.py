@@ -700,97 +700,6 @@ def cmd_fillna(session: Session, args: str) -> str:
         return friendly_error(e, "Fillna error")
 
 
-@command("cast", usage="cast <col> <type>")
-def cmd_cast(session: Session, args: str) -> str:
-    """Convert column type: int, float, str, bool."""
-    df = session.require_data()
-    parts = args.split()
-    if len(parts) < 2:
-        return "Usage: cast <col> <type>  (types: int, float, str, bool)"
-
-    col = parts[0]
-    target_type = parts[1].lower()
-    if col not in df.columns:
-        return f"Column not found: {col}"
-
-    TYPE_MAP = {
-        "int": pl.Int64,
-        "float": pl.Float64,
-        "str": pl.Utf8,
-        "string": pl.Utf8,
-        "bool": pl.Boolean,
-    }
-    pl_type = TYPE_MAP.get(target_type)
-    if pl_type is None:
-        return f"Unknown type: {target_type}. Available: {', '.join(TYPE_MAP)}"
-
-    session.snapshot()
-    try:
-        session.df = df.with_columns(pl.col(col).cast(pl_type))
-        return f"Cast '{col}' to {target_type}. Use 'undo' to revert."
-    except Exception as e:
-        session.undo()
-        return friendly_error(e, "Cast error")
-
-
-@command("lag", usage="lag <col> [N] [as <name>]")
-def cmd_lag(session: Session, args: str) -> str:
-    """Create a lagged variable (shift values down by N rows, default 1)."""
-    df = session.require_data()
-    ca = CommandArgs(args)
-    if not ca.positional:
-        return "Usage: lag <col> [N] [as <name>]"
-
-    col = ca.positional[0]
-    if col not in df.columns:
-        return f"Column not found: {col}"
-
-    n = 1
-    for p in ca.positional[1:]:
-        if p.lower() == "as":
-            break
-        try:
-            n = int(p)
-        except ValueError:
-            pass
-
-    as_rest = ca.rest_after("as")
-    new_name = as_rest.split()[0] if as_rest else f"{col}_lag{n}"
-
-    session.snapshot()
-    session.df = df.with_columns(pl.col(col).shift(n).alias(new_name))
-    return f"Created '{new_name}' (lag {n}). Use 'undo' to revert."
-
-
-@command("lead", usage="lead <col> [N] [as <name>]")
-def cmd_lead(session: Session, args: str) -> str:
-    """Create a lead variable (shift values up by N rows, default 1)."""
-    df = session.require_data()
-    ca = CommandArgs(args)
-    if not ca.positional:
-        return "Usage: lead <col> [N] [as <name>]"
-
-    col = ca.positional[0]
-    if col not in df.columns:
-        return f"Column not found: {col}"
-
-    n = 1
-    for p in ca.positional[1:]:
-        if p.lower() == "as":
-            break
-        try:
-            n = int(p)
-        except ValueError:
-            pass
-
-    as_rest = ca.rest_after("as")
-    new_name = as_rest.split()[0] if as_rest else f"{col}_lead{n}"
-
-    session.snapshot()
-    session.df = df.with_columns(pl.col(col).shift(-n).alias(new_name))
-    return f"Created '{new_name}' (lead {n}). Use 'undo' to revert."
-
-
 @command("append", usage="append using <file> [, force]")
 def cmd_append(session: Session, args: str) -> str:
     """Append rows from another file to current dataset."""
@@ -994,3 +903,6 @@ def cmd_sqlload(session: Session, args: str) -> str:
     session.dataset_name = query_or_table
     session._undo_stack.clear()
     return f"Loaded {session.shape_str} from SQL: {url}"
+
+# Backward-compat aliases — cmd_lag/lead/cast moved to datamanip_cmds
+from openstat.commands.datamanip_cmds import cmd_lag, cmd_lead, cmd_cast  # noqa: F401
