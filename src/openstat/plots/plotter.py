@@ -310,3 +310,128 @@ def plot_scale_location(
     fig.savefig(path, dpi=cfg.plot_dpi)
     plt.close(fig)
     return path
+
+
+# ---------------------------------------------------------------------------
+# Coefficient plot (post-estimation)
+# ---------------------------------------------------------------------------
+
+
+def plot_coef(
+    params: dict,
+    ci_lower: dict,
+    ci_upper: dict,
+    output_dir: Path,
+    *,
+    title: str = "Coefficient Plot",
+    drop_const: bool = True,
+) -> Path:
+    """Coefficient plot with 95% CI error bars. Saves to PNG."""
+    cfg = get_config()
+
+    _CONST_NAMES = {"const", "Intercept", "_cons"}
+    names = [k for k in params if not (drop_const and k in _CONST_NAMES)]
+    if not names:
+        names = list(params.keys())
+
+    coefs = np.array([params[n] for n in names])
+    err_lower = np.array([params[n] - ci_lower[n] for n in names])
+    err_upper = np.array([ci_upper[n] - params[n] for n in names])
+
+    fig_h = max(cfg.plot_figsize_h, len(names) * 0.55 + 1.5)
+    fig, ax = plt.subplots(figsize=(cfg.plot_figsize_w, fig_h))
+
+    y_pos = np.arange(len(names))
+    ax.errorbar(
+        coefs, y_pos,
+        xerr=[err_lower, err_upper],
+        fmt="o",
+        color="#4C72B0",
+        ecolor="#4C72B0",
+        capsize=4,
+        linewidth=1.5,
+        markersize=6,
+    )
+    ax.axvline(0, color="gray", linestyle="--", linewidth=1, alpha=0.8)
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(names)
+    ax.set_xlabel("Coefficient (95% CI)")
+    ax.set_title(title)
+    fig.tight_layout()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = _unique_path(output_dir, "coef_plot")
+    fig.savefig(path, dpi=cfg.plot_dpi)
+    plt.close(fig)
+    return path
+
+
+def plot_interaction(
+    df: pl.DataFrame,
+    y_col: str,
+    x_col: str,
+    mod_col: str,
+    output_dir: Path,
+    *,
+    n_levels: int = 3,
+) -> Path:
+    """Interaction plot: y vs x for low/medium/high levels of moderator.
+
+    Uses ±1 SD split for continuous moderators, unique values for categorical.
+    """
+    cfg = get_config()
+    _validate_col(df, y_col)
+    _validate_col(df, x_col)
+    _validate_col(df, mod_col)
+
+
+
+    fig, ax = plt.subplots(figsize=(cfg.plot_figsize_w, cfg.plot_figsize_h))
+
+    mod_series = df[mod_col].drop_nulls()
+    is_numeric_mod = mod_series.dtype in (
+        pl.Float32, pl.Float64, pl.Int8, pl.Int16, pl.Int32, pl.Int64,
+        pl.UInt8, pl.UInt16, pl.UInt32, pl.UInt64,
+    )
+
+    if is_numeric_mod:
+        mu = mod_series.mean()
+        sd = mod_series.std()
+        cuts = {
+            f"{mod_col} Low (−1SD)":  df.filter(pl.col(mod_col) < mu - sd),
+            f"{mod_col} Mean":        df.filter((pl.col(mod_col) >= mu - sd) & (pl.col(mod_col) <= mu + sd)),
+            f"{mod_col} High (+1SD)": df.filter(pl.col(mod_col) > mu + sd),
+        }
+    else:
+        unique_vals = mod_series.unique().sort().to_list()[:n_levels]
+        cuts = {
+            f"{mod_col}={v}": df.filter(pl.col(mod_col) == v)
+            for v in unique_vals
+        }
+
+    colors = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3"]
+    for i, (label, sub) in enumerate(cuts.items()):
+        if sub.is_empty():
+            continue
+        x_vals = sub[x_col].drop_nulls().to_numpy()
+        y_vals = sub[y_col].drop_nulls().to_numpy()
+        if len(x_vals) == 0:
+            continue
+        # regression line for this group
+        if len(x_vals) > 1:
+            m, b = np.polyfit(x_vals, y_vals, 1)
+            x_range = np.linspace(x_vals.min(), x_vals.max(), 50)
+            ax.plot(x_range, m * x_range + b, color=colors[i % len(colors)], label=label, linewidth=2)
+        ax.scatter(x_vals, y_vals, alpha=0.25, color=colors[i % len(colors)], s=20)
+
+    ax.set_xlabel(x_col)
+    ax.set_ylabel(y_col)
+    ax.set_title(f"Interaction: {y_col} ~ {x_col} × {mod_col}")
+    ax.legend(loc="best", fontsize=9)
+    fig.tight_layout()
+
+    output_dir.mkdir(parents=True, exist_ok=True)
+    path = _unique_path(output_dir, "interaction_plot")
+    fig.savefig(path, dpi=cfg.plot_dpi)
+    plt.close(fig)
+    return path

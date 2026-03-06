@@ -37,6 +37,45 @@ class Session:
     output_dir: Path = field(default=None)  # type: ignore[assignment]
     _undo_stack: list[pl.DataFrame] = field(default_factory=list)
 
+    # Panel data (F1) / Time series (F2)
+    _panel_var: str | None = field(default=None, repr=False)
+    _time_var: str | None = field(default=None, repr=False)
+    _ts_freq: str | None = field(default=None, repr=False)
+
+    # Survival analysis (F3)
+    _surv_time_var: str | None = field(default=None, repr=False)
+    _surv_event_var: str | None = field(default=None, repr=False)
+
+    # DuckDB backend (F6)
+    _backend: str = field(default="polars", repr=False)
+    _backend_obj: object = field(default=None, repr=False)
+
+    # File format labels (F10)
+    _variable_labels: dict | None = field(default=None, repr=False)
+
+    # Multiple imputation (F11)
+    _imputed_datasets: list | None = field(default=None, repr=False)
+    _mi_m: int = field(default=0, repr=False)
+
+    # Survey design (F12)
+    _svy_weight_var: str | None = field(default=None, repr=False)
+    _svy_strata_var: str | None = field(default=None, repr=False)
+    _svy_psu_var: str | None = field(default=None, repr=False)
+
+    # Panel model storage for Hausman test
+    _panel_models: dict = field(default_factory=dict, repr=False)
+
+    # Session logging (log using / log close)
+    _log_file: object = field(default=None, repr=False)   # open file handle
+    _log_path: str | None = field(default=None, repr=False)
+
+    # Last margins / marginal effects result
+    _last_margins: object = field(default=None, repr=False)
+
+    # Network analysis (network build)
+    _network: object = field(default=None, repr=False)
+    _network_weight_col: str | None = field(default=None, repr=False)
+
     def __post_init__(self) -> None:
         cfg = get_config()
         if self.output_dir is None:

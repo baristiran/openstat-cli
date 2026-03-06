@@ -685,6 +685,7 @@ def cmd_margins(session: Session, args: str) -> str:
         fit_result = session._last_fit_result
         var_names = list(fit_result.params.keys()) if fit_result else []  # type: ignore[union-attr]
         result = compute_margins(session._last_model, var_names, method)
+        session._last_margins = result
         return result.summary_table()
     except Exception as e:
         return friendly_error(e, "Margins error")
@@ -736,33 +737,95 @@ def cmd_bootstrap(session: Session, args: str) -> str:
 # estat — post-estimation diagnostics
 # ---------------------------------------------------------------------------
 
-@command("estat", usage="estat <subcommand>  (hettest | ovtest | linktest | ic | all)")
+@command("estat", usage="estat <subcommand>  (hettest | ovtest | linktest | ic | icc | firststage | overid | endogtest | phtest | deff | all)")
 def cmd_estat(session: Session, args: str) -> str:
     """Post-estimation diagnostics (Stata-style).
 
     Subcommands:
-      hettest   — Breusch-Pagan / Cook-Weisberg heteroscedasticity test
-      ovtest    — Ramsey RESET specification test
-      linktest  — link test for model specification
-      ic        — Information criteria (AIC, BIC, log-likelihood)
-      all       — Run all diagnostics
+      hettest     — Breusch-Pagan / Cook-Weisberg heteroscedasticity test
+      ovtest      — Ramsey RESET specification test
+      linktest    — link test for model specification
+      ic          — Information criteria (AIC, BIC, log-likelihood)
+      icc         — Intraclass Correlation Coefficient (after mixed)
+      firststage  — First-stage diagnostics (after ivregress)
+      overid      — Overidentification test (after ivregress)
+      endogtest   — Endogeneity test (after ivregress)
+      phtest      — Proportional hazards test (after stcox)
+      deff        — Design effect (after svy:)
+      all         — Run all OLS diagnostics
     """
     import statsmodels.api as sm
     from openstat.stats.models import _build_X_from_indeps
 
     if session._last_model is None or session._last_model_vars is None:
-        return "No model fitted. Run ols, logit, or probit first."
+        return "No model fitted. Run a model command first."
 
     sub_cmd = args.strip().lower()
     if not sub_cmd:
         return (
             "Usage: estat <subcommand>\n"
-            "  hettest   Breusch-Pagan heteroscedasticity test\n"
-            "  ovtest    Ramsey RESET specification test\n"
-            "  linktest  Link test for model specification\n"
-            "  ic        Information criteria (AIC, BIC)\n"
-            "  all       Run all diagnostics"
+            "  hettest     Breusch-Pagan heteroscedasticity test\n"
+            "  ovtest      Ramsey RESET specification test\n"
+            "  linktest    Link test for model specification\n"
+            "  ic          Information criteria (AIC, BIC)\n"
+            "  icc         Intraclass Correlation Coefficient (after mixed)\n"
+            "  firststage  First-stage diagnostics (after ivregress)\n"
+            "  overid      Overidentification test (after ivregress)\n"
+            "  endogtest   Endogeneity test (after ivregress)\n"
+            "  phtest      Proportional hazards test (after stcox)\n"
+            "  deff        Design effect (after svy:)\n"
+            "  all         Run all OLS diagnostics"
         )
+
+    # --- New feature-specific subcommands ---
+    if sub_cmd == "icc":
+        try:
+            from openstat.stats.mixed import compute_icc
+            icc_val = compute_icc(session._last_model)
+            return f"Intraclass Correlation Coefficient (ICC): {icc_val:.4f}\n  ICC = var(random effect) / (var(random effect) + var(residual))"
+        except Exception as e:
+            return friendly_error(e, "estat icc (requires a mixed model)")
+
+    if sub_cmd == "firststage":
+        try:
+            from openstat.stats.iv import first_stage_diagnostics
+            return first_stage_diagnostics(session._last_model)
+        except Exception as e:
+            return friendly_error(e, "estat firststage (requires an IV model)")
+
+    if sub_cmd == "overid":
+        try:
+            from openstat.stats.iv import overidentification_test
+            return overidentification_test(session._last_model)
+        except Exception as e:
+            return friendly_error(e, "estat overid (requires an IV model)")
+
+    if sub_cmd == "endogtest":
+        try:
+            from openstat.stats.iv import endogeneity_test
+            return endogeneity_test(session._last_model)
+        except Exception as e:
+            return friendly_error(e, "estat endogtest (requires an IV model)")
+
+    if sub_cmd == "phtest":
+        try:
+            from openstat.stats.survival import schoenfeld_test
+            return schoenfeld_test(session._last_model)
+        except Exception as e:
+            return friendly_error(e, "estat phtest (requires a Cox PH model)")
+
+    if sub_cmd == "deff":
+        df = session.require_data()
+        if session._svy_weight_var is None:
+            return "Survey design not set. Use svyset first."
+        dep, _ = session._last_model_vars
+        try:
+            from openstat.stats.survey import compute_deff
+            deff = compute_deff(df, dep, session._svy_weight_var,
+                                session._svy_psu_var, session._svy_strata_var)
+            return f"Design Effect (DEFF) for {dep}: {deff:.4f}\n  DEFF > 1 indicates clustering increases variance relative to SRS"
+        except Exception as e:
+            return friendly_error(e, "estat deff")
 
     model = session._last_model
     dep, indeps = session._last_model_vars
@@ -888,7 +951,7 @@ def cmd_estat(session: Session, args: str) -> str:
             results.append(f"ic failed: {e}")
 
     if not results:
-        return f"Unknown estat subcommand: {sub_cmd}. Use: hettest, ovtest, linktest, ic, all"
+        return f"Unknown estat subcommand: {sub_cmd}. Use: hettest, ovtest, linktest, ic, icc, firststage, overid, endogtest, phtest, deff, all"
 
     return "\n\n".join(results)
 

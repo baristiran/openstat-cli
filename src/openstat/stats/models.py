@@ -201,6 +201,38 @@ class FitResult:
         lines.append(r"\end{table}")
         return "\n".join(lines)
 
+    def to_html(self) -> str:
+        """Return HTML-formatted summary for Jupyter display."""
+        console = Console(file=io.StringIO(), width=120, record=True)
+        table = Table(title=f"{self.model_type}: {self.formula}")
+        table.add_column("Variable", style="cyan")
+        table.add_column("Coef", justify="right")
+        table.add_column("Std.Err", justify="right")
+        table.add_column("t/z", justify="right")
+        table.add_column("P>|t|", justify="right")
+        table.add_column("[95% CI Low]", justify="right")
+        table.add_column("[95% CI High]", justify="right")
+        for var in self.params:
+            sig = ""
+            pv = self.p_values[var]
+            if pv < 0.001:
+                sig = " ***"
+            elif pv < 0.01:
+                sig = " **"
+            elif pv < 0.05:
+                sig = " *"
+            table.add_row(
+                var,
+                f"{self.params[var]:.4f}",
+                f"{self.std_errors[var]:.4f}",
+                f"{self.t_values[var]:.3f}",
+                f"{pv:.4f}{sig}",
+                f"{self.conf_int_low[var]:.4f}",
+                f"{self.conf_int_high[var]:.4f}",
+            )
+        console.print(table)
+        return console.export_html(inline_styles=True)
+
 
 def _prepare_data(
     df: pl.DataFrame,

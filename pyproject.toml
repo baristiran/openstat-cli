@@ -3,25 +3,36 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "openstat"
-version = "0.2.0"
-description = "Open-source statistical analysis tool with interactive REPL"
+name = "openstat-cli"
+version = "1.0.0"
+description = "Open-source statistical analysis tool — a free alternative to Stata, SPSS, and SAS"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.10"
 authors = [
-    { name = "OpenStat Contributors" },
+    { name = "baristiran", email = "" },
 ]
-keywords = ["statistics", "data-analysis", "regression", "cli", "repl"]
+keywords = [
+    "statistics", "data-analysis", "regression", "cli", "repl",
+    "stata", "spss", "econometrics", "survival-analysis", "time-series",
+    "panel-data", "causal-inference", "machine-learning",
+]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Education",
+    "Intended Audience :: Financial and Insurance Industry",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Information Analysis",
+    "Topic :: Scientific/Engineering :: Mathematics",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Environment :: Console",
 ]
 dependencies = [
     "numpy>=1.24",
@@ -33,6 +44,12 @@ dependencies = [
     "rich>=13.0",
     "prompt-toolkit>=3.0",
 ]
+
+[project.urls]
+Homepage = "https://github.com/openstat-project/openstat"
+Documentation = "https://github.com/openstat-project/openstat#readme"
+"Bug Tracker" = "https://github.com/openstat-project/openstat/issues"
+Changelog = "https://github.com/openstat-project/openstat/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = [
@@ -46,6 +63,84 @@ excel = [
 stata = [
     "pyreadstat>=1.0",
     "pandas>=2.0",
+]
+sas = [
+    "pyreadstat>=1.0",
+    "pandas>=2.0",
+]
+spss = [
+    "pyreadstat>=1.0",
+    "pandas>=2.0",
+]
+panel = [
+    "linearmodels>=6.0",
+]
+survival = [
+    "lifelines>=0.28",
+]
+duckdb = [
+    "duckdb>=0.10",
+]
+web = [
+    "fastapi>=0.100",
+    "uvicorn>=0.30",
+    "python-multipart",
+    "websockets",
+]
+jupyter = [
+    "ipython>=8.0",
+]
+report = [
+    "python-docx>=1.1",
+    "python-pptx>=0.6",
+]
+ml = [
+    "scikit-learn>=1.4",
+]
+factor = [
+    "scikit-learn>=1.4",
+]
+garch = [
+    "arch>=6.0",
+]
+database = [
+    "connectorx>=0.3",
+]
+sem = [
+    "semopy>=2.3",
+]
+network = [
+    "networkx>=3.0",
+]
+tui = [
+    "textual>=0.60",
+]
+pdf = [
+    "reportlab>=4.0",
+]
+fuzzy = [
+    "rapidfuzz>=3.0",
+]
+rbridge = [
+    "rpy2>=3.5",
+]
+openai = [
+    "openai>=1.0",
+]
+anthropic = [
+    "anthropic>=0.20",
+]
+notebook = [
+    "nbformat>=5.0",
+]
+interactive = [
+    "plotly>=5.0",
+]
+shap = [
+    "shap>=0.44",
+]
+all = [
+    "openstat-cli[excel,stata,sas,spss,panel,survival,duckdb,web,jupyter,report,ml,garch,database,sem,network,tui,pdf,fuzzy,notebook,interactive,shap]",
 ]
 
 [project.scripts]

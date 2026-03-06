@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OpenStat Web</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>OpenStat <span class="version">v0.3.0</span></h1>
+        <span class="status" id="status">Connecting...</span>
+    </header>
+
+    <main>
+        <div id="output" class="output"></div>
+        <div id="plot-container" class="plot-container" style="display:none;">
+            <img id="plot-img" alt="Plot" />
+        </div>
+    </main>
+
+    <footer>
+        <div class="input-row">
+            <span class="prompt">openstat&gt;</span>
+            <input type="text" id="command-input" placeholder="Type a command..." autofocus />
+        </div>
+        <div class="toolbar">
+            <label class="upload-label">
+                Upload Data
+                <input type="file" id="file-upload" accept=".csv,.parquet,.dta,.xlsx,.sas7bdat,.sav" />
+            </label>
+            <span id="shape-info" class="shape-info">No data</span>
+        </div>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

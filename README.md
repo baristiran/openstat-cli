@@ -1,8 +1,9 @@
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.2.0-blue?style=for-the-badge" alt="Version">
+  <img src="https://img.shields.io/badge/version-1.0.0-blue?style=for-the-badge" alt="Version">
   <img src="https://img.shields.io/badge/python-3.10%2B-brightgreen?style=for-the-badge&logo=python&logoColor=white" alt="Python">
   <img src="https://img.shields.io/badge/license-MIT-orange?style=for-the-badge" alt="License">
-  <img src="https://img.shields.io/badge/tests-343%20passed-success?style=for-the-badge" alt="Tests">
+  <img src="https://img.shields.io/badge/tests-816%20passed-success?style=for-the-badge" alt="Tests">
+  <img src="https://img.shields.io/badge/commands-231-blueviolet?style=for-the-badge" alt="Commands">
   <img src="https://img.shields.io/badge/powered%20by-Polars%20%7C%20statsmodels-purple?style=for-the-badge" alt="Stack">
 </p>
 

@@ -15,17 +15,76 @@ from openstat.dsl.parser import parse_expression, ParseError
 from openstat.commands.base import command, CommandArgs, rich_to_str, friendly_error
 
 
-@command("load", usage="load <path.csv|path.parquet|path.dta>")
+@command("load", usage="load <path> [sheet=<name|index|list>]")
 def cmd_load(session: Session, args: str) -> str:
-    """Load a dataset from CSV, Parquet, or Stata (.dta) file."""
-    path = args.strip()
-    if not path:
-        return "Usage: load <path>"
-    session.df = load_file(path)
+    """Load a dataset from CSV, Parquet, Stata (.dta), or Excel (.xlsx) file.
+
+    For Excel files, specify a sheet with sheet=<name|index>.
+    Use sheet=list to see available sheet names.
+
+    Examples:
+      load data.csv
+      load results.xlsx
+      load workbook.xlsx sheet=Sheet2
+      load workbook.xlsx sheet=1
+      load workbook.xlsx sheet=list
+    """
+    ca = CommandArgs(args)
+    if not ca.positional:
+        return "Usage: load <path> [sheet=<name|index|list>]"
+    path = ca.positional[0]
+    sheet = ca.options.get("sheet")
+
+    if sheet is not None and path.lower().endswith((".xlsx", ".xls")):
+        from openstat.io.loader import _load_excel
+        from pathlib import Path as _Path
+        # sheet=list → just show sheet names
+        if sheet == "list":
+            try:
+                _load_excel(_Path(path), sheet="list")
+            except ValueError as exc:
+                return str(exc)
+        # numeric index
+        sheet_arg: str | int = int(sheet) if sheet.isdigit() else sheet
+        session.df = _load_excel(_Path(path), sheet=sheet_arg)
+    else:
+        session.df = load_file(path, session=session)
+
     session.dataset_path = path
     session.dataset_name = path.split("/")[-1]
     session._undo_stack.clear()
     return f"Loaded {session.shape_str} from {path}"
+
+
+@command("labels", usage="labels [column]")
+def cmd_labels(session: Session, args: str) -> str:
+    """Show variable/value labels from SAS, SPSS, or Stata files."""
+    labels = session._variable_labels
+    if not labels:
+        return "No variable labels available. Labels are loaded from .dta, .sav, or .sas7bdat files."
+    col = args.strip()
+    if col:
+        if col not in labels:
+            return f"No labels for column '{col}'. Columns with labels: {', '.join(labels.keys())}"
+        mapping = labels[col]
+        lines = [f"Labels for '{col}':"]
+        for val, lbl in sorted(mapping.items(), key=lambda x: str(x[0])):
+            lines.append(f"  {val} = {lbl}")
+        return "\n".join(lines)
+
+    def render(console: Console) -> None:
+        table = Table(title="Variable Value Labels")
+        table.add_column("Column", style="cyan")
+        table.add_column("# Labels", justify="right")
+        table.add_column("Sample", style="dim")
+        for var, mapping in sorted(labels.items()):
+            sample = ", ".join(f"{k}={v}" for k, v in list(mapping.items())[:3])
+            if len(mapping) > 3:
+                sample += ", ..."
+            table.add_row(var, str(len(mapping)), sample)
+        console.print(table)
+
+    return rich_to_str(render)
 
 
 @command("describe", usage="describe")
@@ -730,3 +789,208 @@ def cmd_lead(session: Session, args: str) -> str:
     session.snapshot()
     session.df = df.with_columns(pl.col(col).shift(-n).alias(new_name))
     return f"Created '{new_name}' (lead {n}). Use 'undo' to revert."
+
+
+@command("append", usage="append using <file> [, force]")
+def cmd_append(session: Session, args: str) -> str:
+    """Append rows from another file to current dataset."""
+    df = session.require_data()
+    ca = CommandArgs(args)
+
+    # Parse: using <file> [, force]
+    rest = ca.rest_after("using")
+    if not rest:
+        return "Usage: append using <file> [, force]"
+
+    force = False
+    if ", force" in rest or ",force" in rest:
+        force = True
+        rest = rest.replace(", force", "").replace(",force", "").strip()
+
+    file_path = rest.strip().strip('"').strip("'")
+    if not file_path:
+        return "Usage: append using <file> [, force]"
+
+    try:
+        new_df = load_file(file_path)
+    except Exception as e:
+        return f"Error loading file: {e}"
+
+    # Check column compatibility
+    current_cols = set(df.columns)
+    new_cols = set(new_df.columns)
+    only_current = current_cols - new_cols
+    only_new = new_cols - current_cols
+
+    if (only_current or only_new) and not force:
+        lines = ["Column mismatch detected:"]
+        if only_current:
+            lines.append(f"  Only in current data: {', '.join(sorted(only_current))}")
+        if only_new:
+            lines.append(f"  Only in new file: {', '.join(sorted(only_new))}")
+        lines.append("Use 'append using <file>, force' to proceed (missing columns filled with null).")
+        return "\n".join(lines)
+
+    rows_before = df.height
+    session.snapshot()
+    session.df = pl.concat([df, new_df], how="diagonal")
+    rows_added = new_df.height
+
+    lines = [f"Appended {rows_added} rows (total: {rows_before + rows_added})."]
+    if only_current or only_new:
+        lines.append("Note: Missing columns filled with null.")
+    lines.append("Use 'undo' to revert.")
+    return "\n".join(lines)
+
+
+@command("egen", usage="egen newvar = func(col) [, by(group)]")
+def cmd_egen(session: Session, args: str) -> str:
+    """Extended generate: create variables with group-wise or row-wise functions.
+
+    Supported functions:
+      mean, sum, min, max, median, count, rank, group,
+      rowtotal(x1 x2 ...), rowmean(x1 x2 ...)
+    """
+    df = session.require_data()
+
+    # Parse: newvar = function(args) [, by(group)]
+    # Handle by() first
+    by_col = None
+    by_match = re.search(r',\s*by\((\w+)\)', args)
+    if by_match:
+        by_col = by_match.group(1)
+        if by_col not in df.columns:
+            return f"Column not found: {by_col}"
+        args_clean = args[:by_match.start()] + args[by_match.end():]
+    else:
+        args_clean = args
+
+    # Parse newvar = function(col_args)
+    m = re.match(r'\s*(\w+)\s*=\s*(\w+)\((.+?)\)\s*$', args_clean.strip())
+    if not m:
+        return (
+            "Usage: egen newvar = func(col) [, by(group)]\n"
+            "Functions: mean, sum, min, max, median, count, rank, group,\n"
+            "           rowtotal(x1 x2 ...), rowmean(x1 x2 ...)"
+        )
+
+    new_var = m.group(1)
+    func_name = m.group(2).lower()
+    col_args = m.group(3).strip()
+
+    # Row-wise functions: rowtotal(x1 x2 x3), rowmean(x1 x2 x3)
+    if func_name in ("rowtotal", "rowmean"):
+        cols = col_args.split()
+        missing_cols = [c for c in cols if c not in df.columns]
+        if missing_cols:
+            return f"Columns not found: {', '.join(missing_cols)}"
+
+        session.snapshot()
+        if func_name == "rowtotal":
+            expr = pl.sum_horizontal([pl.col(c) for c in cols])
+        else:  # rowmean
+            expr = pl.mean_horizontal([pl.col(c) for c in cols])
+        session.df = df.with_columns(expr.alias(new_var))
+        return f"Created '{new_var}' = {func_name}({' '.join(cols)}). Use 'undo' to revert."
+
+    # Group-level and group-id functions
+    col = col_args.strip()
+
+    # Special case: group() creates numeric group ID
+    if func_name == "group":
+        if col not in df.columns:
+            return f"Column not found: {col}"
+        session.snapshot()
+        # Create dense rank (group identifier)
+        session.df = df.with_columns(
+            pl.col(col).rank("dense").cast(pl.Int64).alias(new_var)
+        )
+        return f"Created '{new_var}' = group({col}). Use 'undo' to revert."
+
+    if col not in df.columns:
+        return f"Column not found: {col}"
+
+    # Map function name to polars expression
+    func_map = {
+        "mean": pl.col(col).mean(),
+        "sum": pl.col(col).sum(),
+        "min": pl.col(col).min(),
+        "max": pl.col(col).max(),
+        "median": pl.col(col).median(),
+        "count": pl.col(col).count(),
+        "rank": pl.col(col).rank("ordinal"),
+    }
+
+    if func_name not in func_map:
+        return (
+            f"Unknown function: {func_name}\n"
+            "Supported: mean, sum, min, max, median, count, rank, group, rowtotal, rowmean"
+        )
+
+    expr = func_map[func_name]
+
+    session.snapshot()
+    if by_col:
+        session.df = df.with_columns(expr.over(by_col).alias(new_var))
+        return f"Created '{new_var}' = {func_name}({col}), by({by_col}). Use 'undo' to revert."
+    else:
+        session.df = df.with_columns(expr.alias(new_var))
+        return f"Created '{new_var}' = {func_name}({col}). Use 'undo' to revert."
+
+
+@command("sqlload", usage="sqlload <connection_url> [<query_or_table>]")
+def cmd_sqlload(session: Session, args: str) -> str:
+    """Load data from a SQL database using a connection URL.
+
+    Requires: pip install connectorx  (or adbc-driver for some backends)
+
+    Examples:
+      sqlload sqlite:///mydata.db mytable
+      sqlload sqlite:///mydata.db "SELECT * FROM sales WHERE year = 2023"
+      sqlload postgresql://user:pass@localhost/mydb "SELECT * FROM employees LIMIT 1000"
+      sqlload mysql+pymysql://user:pass@localhost/mydb customers
+    """
+    stripped = args.strip()
+    if not stripped:
+        return (
+            "Usage: sqlload <connection_url> [<query_or_table>]\n"
+            "Examples:\n"
+            "  sqlload sqlite:///path.db mytable\n"
+            "  sqlload sqlite:///path.db \"SELECT * FROM tbl WHERE x > 0\"\n"
+            "  sqlload postgresql://user:pass@host/db \"SELECT * FROM tbl\""
+        )
+
+    # Split into URL and query/table (second token may be quoted)
+    import shlex
+    try:
+        parts = shlex.split(stripped)
+    except ValueError:
+        parts = stripped.split(None, 1)
+
+    url = parts[0]
+    query_or_table = parts[1] if len(parts) > 1 else None
+
+    # Build SQL query
+    if query_or_table is None:
+        return "Please specify a table name or SQL query after the connection URL."
+
+    sql = query_or_table if query_or_table.strip().lower().startswith("select") \
+        else f"SELECT * FROM {query_or_table}"
+
+    try:
+        df = pl.read_database_uri(query=sql, uri=url)
+    except ImportError as e:
+        return (
+            f"Missing optional dependency: {e}\n"
+            "Install with: pip install connectorx\n"
+            "Or for PostgreSQL/MySQL: pip install adbc-driver-postgresql"
+        )
+    except Exception as e:
+        return f"sqlload error: {e}"
+
+    session.snapshot()
+    session.df = df
+    session.dataset_path = url
+    session.dataset_name = query_or_table
+    session._undo_stack.clear()
+    return f"Loaded {session.shape_str} from SQL: {url}"

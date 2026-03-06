@@ -134,6 +134,20 @@ def get_usage(name: str) -> str:
     return _USAGE.get(name, "")
 
 
+def run_command(session, line: str) -> str:
+    """Run a command line string against the session. Used by DSL loops."""
+    line = line.strip()
+    if not line:
+        return ""
+    parts = line.split(None, 1)
+    cmd_name = parts[0].lower()
+    args = parts[1] if len(parts) > 1 else ""
+    handler = _REGISTRY.get(cmd_name)
+    if handler is None:
+        return f"Unknown command: {cmd_name}"
+    return handler(session, args) or ""
+
+
 def rich_to_str(fn) -> str:
     """Capture Rich output as plain text (no stdout side-effect)."""
     buf = io.StringIO()

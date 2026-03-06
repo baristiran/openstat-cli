@@ -69,5 +69,24 @@ def run(
     run_script(str(script), strict=strict)
 
 
+@app.command()
+def serve(
+    port: int = typer.Option(8080, help="Port to listen on."),
+    host: str = typer.Option("127.0.0.1", help="Host to bind to."),
+) -> None:
+    """Start the web-based GUI."""
+    try:
+        import uvicorn
+    except ImportError:
+        console.print("[red]Web GUI requires: pip install openstat[web][/red]")
+        raise typer.Exit(1)
+    from openstat.web.app import app as web_app
+    if web_app is None:
+        console.print("[red]Web GUI requires: pip install openstat[web][/red]")
+        raise typer.Exit(1)
+    console.print(f"[bold cyan]OpenStat Web[/bold cyan] starting on http://{host}:{port}")
+    uvicorn.run(web_app, host=host, port=port, log_level="info")
+
+
 if __name__ == "__main__":
     app()
